@@ -1,10 +1,13 @@
 package com.inbum.fancontroller
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.*
 import android.util.AttributeSet
 import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.animation.LinearInterpolator
 import androidx.core.content.withStyledAttributes
 import androidx.core.view.AccessibilityDelegateCompat
 import androidx.core.view.ViewCompat
@@ -50,6 +53,9 @@ class DialView @JvmOverloads constructor(
         typeface = Typeface.create( "", Typeface.BOLD)
     }
 
+    private var animateAngleRat = 0f
+    private var animator: ValueAnimator? = null
+
     init {
         isClickable = true
         context.withStyledAttributes(attrs, R.styleable.DialView) {
@@ -79,7 +85,9 @@ class DialView @JvmOverloads constructor(
 
         fanSpeed = fanSpeed.next()
         updateContentDescription()
-        invalidate()
+//        invalidate()
+        // animate
+        startAnimation()
         return true
     }
 
@@ -91,6 +99,17 @@ class DialView @JvmOverloads constructor(
         // Angles are in radians.
         val startAngle = Math.PI * (9 / 8.0)
         val angle = startAngle + pos.ordinal * (Math.PI / 4)
+        x = (radius * cos(angle)).toFloat() + width / 2
+        y = (radius * sin(angle)).toFloat() + height / 2
+    }
+
+    private fun PointF.computeXYForSpeedWithAnimation(pos: FanSpeed, radius: Float){
+        // Angles are in radians.
+        val offAngle = Math.PI * (9 / 8.0)
+        var beforeAngle = Math.PI * (9 / 8.0) + (pos.ordinal-1) * (Math.PI / 4)
+
+        var angle = beforeAngle + animateAngleRat * (Math.PI / 4)
+        if(pos.ordinal == 0) angle = offAngle
         x = (radius * cos(angle)).toFloat() + width / 2
         y = (radius * sin(angle)).toFloat() + height / 2
     }
@@ -112,7 +131,7 @@ class DialView @JvmOverloads constructor(
 
         // Draw the indicator circle.
         val markerRadius = radius + RADIUS_OFFSET_INDICATOR
-        pointPosition.computeXYForSpeed(fanSpeed, markerRadius)
+        pointPosition.computeXYForSpeedWithAnimation(fanSpeed, markerRadius)
         paint.color = Color.BLACK
         canvas.drawCircle(pointPosition.x, pointPosition.y, radius/12, paint)
 
@@ -127,5 +146,18 @@ class DialView @JvmOverloads constructor(
 
     fun updateContentDescription() {
         contentDescription = resources.getString(fanSpeed.label)
+    }
+
+    fun startAnimation(){
+        animator?.cancel()
+        animator = ValueAnimator.ofFloat(0f, 1.0f).apply {
+            duration = 300
+            interpolator = AccelerateDecelerateInterpolator()
+            addUpdateListener { valueAnimator ->
+                animateAngleRat = valueAnimator.animatedValue as Float
+                invalidate()
+            }
+        }
+        animator?.start()
     }
 }
